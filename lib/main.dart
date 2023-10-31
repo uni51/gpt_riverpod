@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-Future main() async {
+void main() async {
   await dotenv.load(fileName: '.env');
   runApp(const MyApp());
 }
@@ -36,15 +36,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   String? _apiText;
-  final apiKey = dotenv.get('CHATGPT_API_KEY');
   String searchText = '';
-
-  @override
-  void initState() {
-    super.initState();
-
-    // callApi();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +78,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ElevatedButton(
                 onPressed: () {
                   // 検索
-                  callApi();
+                  _performChatRequest();
                 },
                 child: const Text('検索'),
               ),
@@ -97,7 +89,19 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  void callApi() async {
+  void _performChatRequest() async {
+    final response = await ChatGPTRequest.getResponse(searchText);
+
+    setState(() {
+      _apiText = response;
+    });
+  }
+}
+
+class ChatGPTRequest {
+  static final apiKey = dotenv.get('CHATGPT_API_KEY');
+
+  static Future<String> getResponse(String requestText) async {
     final response = await http.post(
       Uri.parse('https://api.openai.com/v1/chat/completions'),
       headers: <String, String>{
@@ -107,7 +111,7 @@ class _MyHomePageState extends State<MyHomePage> {
       body: jsonEncode(<String, dynamic>{
         'model': 'gpt-3.5-turbo',
         'messages': [
-          {"role": "user", "content": searchText}
+          {"role": "user", "content": requestText}
         ]
       }),
     );
@@ -115,9 +119,6 @@ class _MyHomePageState extends State<MyHomePage> {
     final jsonString = utf8.decode(body);
     final json = jsonDecode(jsonString);
     final content = json['choices'][0]['message']['content'];
-
-    setState(() {
-      _apiText = content;
-    });
+    return content;
   }
 }
