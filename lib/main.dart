@@ -1,13 +1,17 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-void main() {
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+Future main() async {
+  await dotenv.load(fileName: '.env');
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-2
-  // This widget is the root of your application.
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -31,12 +35,15 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  String? _apiText;
+  final apiKey = dotenv.get('CHATGPT_API_KEY');
+  String searchText = '';
 
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+
+    // callApi();
   }
 
   @override
@@ -47,24 +54,70 @@ class _MyHomePageState extends State<MyHomePage> {
         title: Text(widget.title),
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Builder(builder: (context) {
+                  final text = _apiText;
+
+                  if (text == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  return Text(
+                    text,
+                    style: const TextStyle(
+                      fontSize: 14,
+                    ),
+                  );
+                }),
+              ),
+              TextField(
+                decoration: const InputDecoration(
+                  hintText: '検索したいテキスト',
+                ),
+                onChanged: (text) {
+                  searchText = text;
+                },
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // 検索
+                  callApi();
+                },
+                child: const Text('検索'),
+              ),
+            ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+
+  void callApi() async {
+    final response = await http.post(
+      Uri.parse('https://api.openai.com/v1/chat/completions'),
+      headers: <String, String>{
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $apiKey',
+      },
+      body: jsonEncode(<String, dynamic>{
+        'model': 'gpt-3.5-turbo',
+        'messages': [
+          {"role": "user", "content": searchText}
+        ]
+      }),
+    );
+    final body = response.bodyBytes;
+    final jsonString = utf8.decode(body);
+    final json = jsonDecode(jsonString);
+    final content = json['choices'][0]['message']['content'];
+
+    setState(() {
+      _apiText = content;
+    });
   }
 }
