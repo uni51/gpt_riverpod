@@ -1,12 +1,25 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   await dotenv.load(fileName: '.env');
-  runApp(const MyApp());
+  runApp(const ProviderScope(child: MyApp()));
+}
+
+final apiTextProvider = StateNotifierProvider<ApiTextNotifier, String?>((ref) {
+  return ApiTextNotifier();
+});
+
+class ApiTextNotifier extends StateNotifier<String?> {
+  ApiTextNotifier() : super(null);
+
+  Future<void> getApiResponse(String searchText) async {
+    final response = await ChatGPTRequest.getResponse(searchText);
+    state = response;
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -25,25 +38,19 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class MyHomePage extends StatefulWidget {
+class MyHomePage extends ConsumerWidget {
   const MyHomePage({super.key, required this.title});
 
   final String title;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final apiText = ref.watch(apiTextProvider);
 
-class _MyHomePageState extends State<MyHomePage> {
-  String? _apiText;
-  String searchText = '';
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
+        title: Text(title),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -53,7 +60,7 @@ class _MyHomePageState extends State<MyHomePage> {
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Builder(builder: (context) {
-                  final text = _apiText;
+                  final text = apiText;
 
                   if (text == null) {
                     return const Center(child: CircularProgressIndicator());
@@ -69,16 +76,18 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
               TextField(
                 decoration: const InputDecoration(
-                  hintText: '検索したいテキスト',
+                  hintText: '日本で一番高い山は？',
                 ),
                 onChanged: (text) {
-                  searchText = text;
+                  ref.read(apiTextProvider.notifier).getApiResponse(text);
                 },
               ),
               ElevatedButton(
-                onPressed: () {
-                  // 検索
-                  _performChatRequest();
+                onPressed: () async {
+                  const searchText = '日本で一番高い山は？';
+                  if (searchText != null) {
+                    await ref.read(apiTextProvider.notifier).getApiResponse(searchText);
+                  }
                 },
                 child: const Text('検索'),
               ),
@@ -87,14 +96,6 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
     );
-  }
-
-  void _performChatRequest() async {
-    final response = await ChatGPTRequest.getResponse(searchText);
-
-    setState(() {
-      _apiText = response;
-    });
   }
 }
 
